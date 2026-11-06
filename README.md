@@ -8,8 +8,11 @@ Run jobs on the Anthropic Message Batches API with cached system prompts, per-it
 
 ## Problem
 
-Describe in two or three sentences the concrete problem this utility solves, who hits it, and what
-they do today without it. Replace this paragraph when the first real feature lands.
+Batch jobs cut LLM cost in half, but scripts that submit a batch and parse the results lose track of
+which items succeeded, expired, errored or returned invalid output, and rerunning everything wastes
+money. This library keeps a resumable state file per job, builds requests with a cached shared system
+prompt, matches results by `custom_id`, validates outputs and requeues only items worth retrying. The
+official SDK has no per-item state or requeue.
 
 ## Install
 
@@ -24,16 +27,29 @@ Requires Python 3.10 or newer. No runtime dependencies.
 ## Usage
 
 ```python
-import anthropic_batch_runner
+import os
 
-# normalize() trims surrounding whitespace and lower-cases the text.
-print(anthropic_batch_runner.normalize("  Hello World "))  # -> "hello world"
+from anthropic_batch_runner import BatchJob, HttpBatchTransport, JobItem
 
-# Blank input is rejected explicitly instead of returning an empty string.
-try:
-    anthropic_batch_runner.normalize("   ")
-except ValueError as exc:
-    print(f"rejected: {exc}")
+items = [JobItem("a1", "Summarize: ..."), JobItem("a2", "Summarize: ...")]
+job = BatchJob.create(
+    "job.json", items, model="claude-sonnet-4-5", system="You summarize.", max_tokens=500
+)
+transport = HttpBatchTransport(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+job.submit(transport)
+# Later, once the batch has ended:
+print(job.collect(transport, validator=lambda text: len(text) > 0))
+job.requeue_failed(transport)  # resubmits only retryable items, or returns None
+```
+
+CLI (the key comes only from `ANTHROPIC_API_KEY`):
+
+```sh
+python -m anthropic_batch_runner submit --state job.json --items items.jsonl \
+    --model claude-sonnet-4-5 --system system.txt --max-tokens 500
+python -m anthropic_batch_runner collect --state job.json
+python -m anthropic_batch_runner requeue --state job.json
 ```
 
 ## Documentation

@@ -19,6 +19,9 @@ classifiers = [
 ]
 dependencies = []
 
+[project.scripts]
+anthropic-batch-runner = "anthropic_batch_runner.__main__:main"
+
 [project.urls]
 Homepage = "https://github.com/Trysac/u011-anthropic-batch-runner"
 Source = "https://github.com/Trysac/u011-anthropic-batch-runner"
